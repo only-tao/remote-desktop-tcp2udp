@@ -125,14 +125,10 @@ def use_gesture():
     global run_gesture
     global stop_threads
     th2 = threading.Thread(target=check_gesture)
-    if run_gesture==0:
-        stop_threads = False
-        run_gesture = 1
-        th2.start()
-    elif run_gesture==1:
-        run_gesture=0
-        stop_threads = True
-        th2.join()  
+    
+    stop_threads = False
+    run_gesture = 1
+    th2.start()
 # GUI的排版
 val = tkinter.StringVar()
 host_lab = tkinter.Label(root, text="Host:") # host:...
