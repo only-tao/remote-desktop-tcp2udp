@@ -33,6 +33,7 @@ soc = None
 socks5 = None
 # 平台
 PLAT = b''
+
 if sys.platform == "win32":
     PLAT = b'win'
 elif sys.platform == "darwin":
@@ -61,42 +62,41 @@ def SetSocket():
     if len(hs) != 2:
         tkinter.messagebox.showinfo('提示', 'Host设置错误！')
         return
-    if socks5 is not None: # 没有设置socks5那么这个就是None
+    if socks5 is not None:
         ss = socks5.split(":")
         if len(ss) != 2:
             tkinter.messagebox.showinfo('提示', '代理设置错误！')
             return
         soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        soc.connect((ss[0], int(ss[1])))
-        soc.sendto(struct.pack(">BB", 5, 0),('127.0.0.1',800))
-        recv,adddr = soc.recvfrom(2)
+        #soc.connect((ss[0], int(ss[1])))
+        conserver = (ss[0],int(ss[1]))    #the controled host
+        soc.sendto(struct.pack(">BB", 5, 0),conserver)
+        recv,addr = soc.recvfrom(2)
         if recv[1] != 0:
             tkinter.messagebox.showinfo('提示', '代理回应错误！')
             return
         if re.match(r'^\d+?\.\d+?\.\d+?\.\d+?:\d+$', host) is None:
             # host 域名访问
             hand = byhost(hs[0], int(hs[1]))
-            soc.sendto(hand,('127.0.0.1',800))
+            soc.sendto(hand,conserver)
         else:
             # host ip访问
             ip = [int(i) for i in hs[0].split(".")]
             port = int(hs[1])
             hand = byipv4(ip, port)
-            soc.sendto(hand,('127.0.0.1',800))
+            soc.sendto(hand,conserver)
         # 代理回应
         rcv = b''
         while len(rcv) != 10:
-            data1,adddr += soc.recvfrom(10-len(rcv))
-            rcv += data1
+            data, addr= soc.recvfrom(10 - len(rcv))
+            rcv += data
         if rcv[1] != 0:
             tkinter.messagebox.showinfo('提示', '代理回应错误！')
             return
     else:
-        soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
-        #TODO1tcp 定义+连接，作为客户端 in SetSocket()
-        #! connect(ip,port)   
-        # soc.connect((hs[0], int(hs[1])))                         
-        #!2 现在查找数据从哪里来
+        soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        #soc.connect((hs[0], int(hs[1])))
+
 # 通过移动滑条设置窗口的Scale
 def SetScale(x):
     global scale, wscale
@@ -133,7 +133,7 @@ def ShowScreen():
         th = threading.Thread(target=run)
         th.start()
     else:
-        soc.close()
+        #soc.close() upd without close()
         showcan.destroy()
 
 # gui 的排版
@@ -162,11 +162,12 @@ last_send = time.time()
 
 def BindEvents(canvas):
     global soc, scale
+    conserver = ('127.0.0.1', 800)
     '''
     处理事件
     '''
     def EventDo(data):
-        soc.sendto(data,('127.0.0.1',800))
+        soc.sendto(data,conserver)
     # 鼠标左键
 
     def LeftDown(e):
@@ -225,19 +226,20 @@ def BindEvents(canvas):
 
 # if click the "Show", the "run" will run
 def run():
-    global wscale, fixh, fixw, soc, showcan
-    SetSocket() # 设置tcp连接与socks5代理
+    global wscale, fixh, fixw, soc, showcan, conserver
+    SetSocket()
+    conserver = ('127.0.0.1', 800)
     # 发送平台信息
-    soc.sendto(PLAT,('127.0.0.1',800))
-    lenb,adddr = soc.recvfrom(5) #TODO2 得到infomation in run()
+    soc.sendto(PLAT,conserver)
+    lenb,addr = soc.recvfrom(5)
     imtype, le = struct.unpack(">BI", lenb)
-    imb = b''# 之后按照一定的规则处理数据=> imb get lenb(length)
-    while le > bufsize:  
-        t,adddr = soc.recvfrom(bufsize)
+    imb = b''
+    while le > bufsize:
+        t,addr = soc.recvfrom(bufsize)
         imb += t
         le -= len(t)
     while le > 0:
-        t,adddr = soc.recvfrom(le)
+        t, addr = soc.recvfrom(le)
         imb += t
         le -= len(t)
     data = np.frombuffer(imb, dtype=np.uint8)
@@ -261,11 +263,11 @@ def run():
             cv.config(width=w, height=h)
             wscale = False
         try:
-            lenb,adddr = soc.recvfrom(5)
+            lenb,addr = soc.recvfrom(5)
             imtype, le = struct.unpack(">BI", lenb)
             imb = b''
             while le > bufsize:
-                t,adddr = soc.recvfrom(bufsize)
+                t, addr = soc.recvfrom(bufsize)
                 imb += t
                 le -= len(t)
             while le > 0:
