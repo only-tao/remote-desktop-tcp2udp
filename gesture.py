@@ -94,7 +94,6 @@ def hand_gesture():
         if show == 1:
             cv2.imshow("Test", new_video)
         cv2.waitKey(1)
-        boardkey = cv2.waitKey(1) & 0xFF
+        boardkey = cv2.waitKey(10) & 0xFF
         if boardkey == 27:
             break
-# hand_gesture()

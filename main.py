@@ -105,7 +105,6 @@ def SetScale(x):
     global scale, wscale
     scale = float(x) / 100
     wscale = True
-click_times = 0
 
 def ShowScreen():
     global showcan, root, soc, th, wscale
@@ -118,19 +117,10 @@ def ShowScreen():
         soc.close()
         showcan.destroy()
 stop_threads = False
-def check_gesture():
-    global click_times
-    while 1: 
-        # print("You use gesture {}".format(click_times))
-        # click_times +=1
-        # time.sleep(1)
-        hand_gesture()
-        if stop_threads==True:
-            break
-
-
-run_gesture = 0 
-
+def check_gesture(): 
+    hand_gesture()
+    
+run_gesture = 0
 def use_gesture():
     global run_gesture
     global stop_threads
@@ -142,8 +132,7 @@ def use_gesture():
     elif run_gesture==1:
         run_gesture=0
         stop_threads = True
-        th2.join()
-        # th2.raise_exception()   
+        th2.join()  
 # GUI的排版
 val = tkinter.StringVar()
 host_lab = tkinter.Label(root, text="Host:") # host:...
