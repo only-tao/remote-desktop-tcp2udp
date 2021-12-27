@@ -102,27 +102,6 @@ def SetScale(x):
     scale = float(x) / 100
     wscale = True
 
-# 设置代理相关的function
-def ShowProxy():
-    # 显示代理设置
-    global root
-
-    def set_s5_addr():
-        global socks5
-        socks5 = s5_en.get()
-        if socks5 == "":
-            socks5 = None
-        pr.destroy()
-    pr = tkinter.Toplevel(root)
-    s5v = tkinter.StringVar()
-    s5_lab = tkinter.Label(pr, text="Socks5 Host:")
-    s5_en = tkinter.Entry(pr, show=None, font=('Arial', 14), textvariable=s5v)
-    s5_btn = tkinter.Button(pr, text="OK", command=set_s5_addr)
-    s5_lab.grid(row=0, column=0, padx=10, pady=10, ipadx=0, ipady=0)
-    s5_en.grid(row=0, column=1, padx=10, pady=10, ipadx=40, ipady=0)
-    s5_btn.grid(row=1, column=0, padx=10, pady=10, ipadx=30, ipady=0)
-    s5v.set("192.168.187.137")
-
 
 def ShowScreen():
     global showcan, root, soc, th, wscale
@@ -143,7 +122,7 @@ sca_lab = tkinter.Label(root, text="Scale:") # scale的按钮
 sca = tkinter.Scale(root, from_=10, to=100, orient=tkinter.HORIZONTAL, length=100,
                     showvalue=100, resolution=0.1, tickinterval=50, command=SetScale)
                     # 设置窗口scale
-proxy_btn = tkinter.Button(root, text="Proxy", command=ShowProxy) # 代理的按钮
+# proxy_btn = tkinter.Button(root, text="Proxy", command=ShowProxy) # 代理的按钮
 show_btn = tkinter.Button(root, text="Show", command=ShowScreen)  # show 的按钮配置
 
 #按钮设置位置
@@ -151,7 +130,7 @@ host_lab.grid(row=0, column=0, padx=10, pady=10, ipadx=0, ipady=0)
 host_en.grid(row=0, column=1, padx=0, pady=0, ipadx=40, ipady=0) # 输入host数字的框
 sca_lab.grid(row=1, column=0, padx=10, pady=10, ipadx=0, ipady=0)
 sca.grid(row=1, column=1, padx=0, pady=0, ipadx=100, ipady=0)
-proxy_btn.grid(row=2, column=0, padx=0, pady=10, ipadx=30, ipady=0)
+# proxy_btn.grid(row=2, column=0, padx=0, pady=10, ipadx=30, ipady=0)
 show_btn.grid(row=2, column=1, padx=0, pady=10, ipadx=30, ipady=0)
 sca.set(100)
 val.set('127.0.0.1:800')
