@@ -11,6 +11,10 @@ import time
 import sys
 import platform
 
+import mediapipe as mp
+import pyautogui
+from gesture import hand_gesture
+# import cv2
 root = tkinter.Tk()
 
 # 画面周期
@@ -113,11 +117,34 @@ def ShowScreen():
     else:
         soc.close()
         showcan.destroy()
+stop_threads = False
+def check_gesture():
+    global click_times
+    while 1: 
+        # print("You use gesture {}".format(click_times))
+        # click_times +=1
+        # time.sleep(1)
+        hand_gesture()
+        if stop_threads==True:
+            break
+
+
+run_gesture = 0 
+
 def use_gesture():
-    global click_times 
-    print("You use gesture {}".format(click_times))
-    click_times +=1
-# gui 的排版
+    global run_gesture
+    global stop_threads
+    th2 = threading.Thread(target=check_gesture)
+    if run_gesture==0:
+        stop_threads = False
+        run_gesture = 1
+        th2.start()
+    elif run_gesture==1:
+        run_gesture=0
+        stop_threads = True
+        th2.join()
+        # th2.raise_exception()   
+# GUI的排版
 val = tkinter.StringVar()
 host_lab = tkinter.Label(root, text="Host:") # host:...
 host_en = tkinter.Entry(root, show=None, font=('Arial', 14), textvariable=val)
@@ -137,7 +164,7 @@ gesture_btn.grid(row=2, column=0, padx=0, pady=10, ipadx=30, ipady=0)
 show_btn.grid(row=2, column=1, padx=0, pady=10, ipadx=30, ipady=0)
 # gesture_btn.grid()  # 原本gesture的位置是(2,0)
 sca.set(100)
-val.set('127.0.0.1:800')
+val.set('127.0.0.1:800')# 设置初始值
 
 last_send = time.time()
 
