@@ -101,7 +101,7 @@ def SetScale(x):
     global scale, wscale
     scale = float(x) / 100
     wscale = True
-
+click_times = 0
 
 def ShowScreen():
     global showcan, root, soc, th, wscale
@@ -113,7 +113,10 @@ def ShowScreen():
     else:
         soc.close()
         showcan.destroy()
-
+def use_gesture():
+    global click_times 
+    print("You use gesture {}".format(click_times))
+    click_times +=1
 # gui 的排版
 val = tkinter.StringVar()
 host_lab = tkinter.Label(root, text="Host:") # host:...
@@ -124,18 +127,20 @@ sca = tkinter.Scale(root, from_=10, to=100, orient=tkinter.HORIZONTAL, length=10
                     # 设置窗口scale
 # proxy_btn = tkinter.Button(root, text="Proxy", command=ShowProxy) # 代理的按钮
 show_btn = tkinter.Button(root, text="Show", command=ShowScreen)  # show 的按钮配置
-
+gesture_btn = tkinter.Button(root, text="gesture", command=use_gesture)
 #按钮设置位置
 host_lab.grid(row=0, column=0, padx=10, pady=10, ipadx=0, ipady=0)
 host_en.grid(row=0, column=1, padx=0, pady=0, ipadx=40, ipady=0) # 输入host数字的框
 sca_lab.grid(row=1, column=0, padx=10, pady=10, ipadx=0, ipady=0)
 sca.grid(row=1, column=1, padx=0, pady=0, ipadx=100, ipady=0)
-# proxy_btn.grid(row=2, column=0, padx=0, pady=10, ipadx=30, ipady=0)
+gesture_btn.grid(row=2, column=0, padx=0, pady=10, ipadx=30, ipady=0)
 show_btn.grid(row=2, column=1, padx=0, pady=10, ipadx=30, ipady=0)
+# gesture_btn.grid()  # 原本gesture的位置是(2,0)
 sca.set(100)
 val.set('127.0.0.1:800')
 
 last_send = time.time()
+
 
 
 def BindEvents(canvas):
