@@ -68,25 +68,26 @@ def SetSocket():
             return
         soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         soc.connect((ss[0], int(ss[1])))
-        soc.sendall(struct.pack(">BB", 5, 0))
-        recv = soc.recv(2)
+        soc.sendto(struct.pack(">BB", 5, 0),('127.0.0.1',800))
+        recv,adddr = soc.recvfrom(2)
         if recv[1] != 0:
             tkinter.messagebox.showinfo('提示', '代理回应错误！')
             return
         if re.match(r'^\d+?\.\d+?\.\d+?\.\d+?:\d+$', host) is None:
             # host 域名访问
             hand = byhost(hs[0], int(hs[1]))
-            soc.sendall(hand)
+            soc.sendto(hand,('127.0.0.1',800))
         else:
             # host ip访问
             ip = [int(i) for i in hs[0].split(".")]
             port = int(hs[1])
             hand = byipv4(ip, port)
-            soc.sendall(hand)
+            soc.sendto(hand,('127.0.0.1',800))
         # 代理回应
         rcv = b''
         while len(rcv) != 10:
-            rcv += soc.recv(10-len(rcv))
+            data1,adddr += soc.recvfrom(10-len(rcv))
+            rcv += data1
         if rcv[1] != 0:
             tkinter.messagebox.showinfo('提示', '代理回应错误！')
             return
@@ -94,7 +95,7 @@ def SetSocket():
         soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
         #TODO1tcp 定义+连接，作为客户端 in SetSocket()
         #! connect(ip,port)   
-        soc.connect((hs[0], int(hs[1])))                         
+        # soc.connect((hs[0], int(hs[1])))                         
         #!2 现在查找数据从哪里来
 # 通过移动滑条设置窗口的Scale
 def SetScale(x):
@@ -165,7 +166,7 @@ def BindEvents(canvas):
     处理事件
     '''
     def EventDo(data):
-        soc.sendall(data)
+        soc.sendto(data,('127.0.0.1',800))
     # 鼠标左键
 
     def LeftDown(e):
@@ -227,16 +228,16 @@ def run():
     global wscale, fixh, fixw, soc, showcan
     SetSocket() # 设置tcp连接与socks5代理
     # 发送平台信息
-    soc.sendall(PLAT)
-    lenb = soc.recv(5) #TODO2 得到infomation in run()
+    soc.sendto(PLAT,('127.0.0.1',800))
+    lenb,adddr = soc.recvfrom(5) #TODO2 得到infomation in run()
     imtype, le = struct.unpack(">BI", lenb)
     imb = b''# 之后按照一定的规则处理数据=> imb get lenb(length)
     while le > bufsize:  
-        t = soc.recv(bufsize)
+        t,adddr = soc.recvfrom(bufsize)
         imb += t
         le -= len(t)
     while le > 0:
-        t = soc.recv(le)
+        t,adddr = soc.recvfrom(le)
         imb += t
         le -= len(t)
     data = np.frombuffer(imb, dtype=np.uint8)
@@ -260,15 +261,15 @@ def run():
             cv.config(width=w, height=h)
             wscale = False
         try:
-            lenb = soc.recv(5)
+            lenb,adddr = soc.recvfrom(5)
             imtype, le = struct.unpack(">BI", lenb)
             imb = b''
             while le > bufsize:
-                t = soc.recv(bufsize)
+                t,adddr = soc.recvfrom(bufsize)
                 imb += t
                 le -= len(t)
             while le > 0:
-                t = soc.recv(le)
+                t,addr = soc.recvfrom(le)
                 imb += t
                 le -= len(t)
             data = np.frombuffer(imb, dtype=np.uint8)

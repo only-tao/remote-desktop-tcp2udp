@@ -5,7 +5,7 @@ PORT = 8888
 BUFSIZ = 1024
 ADDRESS = (HOST, PORT)
 
-udpClientSocket = socket(AF_INET, SOCK_DGRAM)
+udpClientSocket = socket(AF_INET, SOCK_DGRAM)#TODO1 udpclient初始化
 
 while True:
     data = input('>')
@@ -13,7 +13,7 @@ while True:
         break
 
     # 发送数据
-    udpClientSocket.sendto(data.encode('utf-8'), ADDRESS)
+    udpClientSocket.sendto(data.encode('utf-8'), ADDRESS)#TODO2 client sentto
     # 接收数据
     data, ADDR = udpClientSocket.recvfrom(BUFSIZ)
     if not data:
