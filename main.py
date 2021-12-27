@@ -247,7 +247,13 @@ def run():
     data = np.frombuffer(imb, dtype=np.uint8)
     img = cv2.imdecode(data, cv2.IMREAD_COLOR)
     h, w, _ = img.shape
-    fixh, fixw = h, w
+    # change the size of img
+    compress_rate = 1
+    # image_resize = cv2.resize(img, (int(h * compress_rate), int(w * compress_rate)),
+    #                           interpolation=cv2.INTER_AREA)
+    # img = image_resize #Image.fromarray(cv2.cvtColor(image_resize, cv2.COLOR_BGR2RGB))
+
+    fixh, fixw = h*compress_rate, w*compress_rate
     imsh = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
     imi = Image.fromarray(imsh)
     imgTK = ImageTk.PhotoImage(image=imi)
@@ -281,6 +287,10 @@ def run():
             #     le -= len(t)
             data = np.frombuffer(imb, dtype=np.uint8)
             ims = cv2.imdecode(data, cv2.IMREAD_COLOR)
+            compress_rate = 1
+            # image_resize = cv2.resize(ims, (int(h * compress_rate), int(w * compress_rate)),
+            #                           interpolation=cv2.INTER_AREA)
+            # ims = image_resize  # Image.fromarray(cv2.cvtColor(image_resize, cv2.COLOR_BGR2RGB))
             # if imtype == 1:
             #     # 全传
             #     img = ims

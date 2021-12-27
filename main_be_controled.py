@@ -120,10 +120,10 @@ def handle(conn, ):
     if image_grab_new is None:
         image_grab = ImageGrab.grab()
         # 添加压缩代码##
-        compress_rate = 0.1
+        compress_rate = 0.5
         heigh, width = image_grab.height,image_grab.width
         img = cv2.cvtColor(np.asarray(image_grab), cv2.COLOR_RGB2BGR)
-        image_resize = cv2.resize(img, (int(heigh * compress_rate), int(width * compress_rate)),
+        image_resize = cv2.resize(img, (int(width * compress_rate), int(heigh* compress_rate )),
                                   interpolation=cv2.INTER_AREA)
         image_grab = Image.fromarray(cv2.cvtColor(image_resize,cv2.COLOR_BGR2RGB))
         image_original_array = np.asarray(image_grab)  # cut screen
@@ -146,10 +146,10 @@ def handle(conn, ):
         # fix for linux
         time.sleep(IDLE)
         image_grab = ImageGrab.grab()
-        compress_rate = 0.1
+        compress_rate = 0.5
         heigh, width = image_grab.height, image_grab.width
         img = cv2.cvtColor(np.asarray(image_grab), cv2.COLOR_RGB2BGR)
-        image_resize = cv2.resize(img, (int(heigh * compress_rate), int(width * compress_rate)),
+        image_resize = cv2.resize(img, (int(width * compress_rate), int(heigh * compress_rate )),
                                   interpolation=cv2.INTER_AREA)
         image_grab = Image.fromarray(cv2.cvtColor(image_resize, cv2.COLOR_BGR2RGB))
         imgnpn = np.asarray(image_grab)
