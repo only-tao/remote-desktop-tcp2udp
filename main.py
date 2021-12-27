@@ -61,7 +61,7 @@ def SetSocket():
     if len(hs) != 2:
         tkinter.messagebox.showinfo('提示', 'Host设置错误！')
         return
-    if socks5 is not None:
+    if socks5 is not None: # 没有设置socks5那么这个就是None
         ss = socks5.split(":")
         if len(ss) != 2:
             tkinter.messagebox.showinfo('提示', '代理设置错误！')
@@ -91,9 +91,11 @@ def SetSocket():
             tkinter.messagebox.showinfo('提示', '代理回应错误！')
             return
     else:
-        soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        soc.connect((hs[0], int(hs[1])))
-
+        soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
+        #TODO1tcp 定义+连接，作为客户端 in SetSocket()
+        #! connect(ip,port)   
+        soc.connect((hs[0], int(hs[1])))                         
+        #!2 现在查找数据从哪里来
 # 通过移动滑条设置窗口的Scale
 def SetScale(x):
     global scale, wscale
@@ -223,13 +225,13 @@ def BindEvents(canvas):
 # if click the "Show", the "run" will run
 def run():
     global wscale, fixh, fixw, soc, showcan
-    SetSocket()
+    SetSocket() # 设置tcp连接与socks5代理
     # 发送平台信息
     soc.sendall(PLAT)
-    lenb = soc.recv(5)
+    lenb = soc.recv(5) #TODO2 得到infomation in run()
     imtype, le = struct.unpack(">BI", lenb)
-    imb = b''
-    while le > bufsize:
+    imb = b''# 之后按照一定的规则处理数据=> imb get lenb(length)
+    while le > bufsize:  
         t = soc.recv(bufsize)
         imb += t
         le -= len(t)

@@ -15,22 +15,13 @@ IDLE = 0.05
 SCROLL_NUM = 5
 bufsize = 1024
 host = ('127.0.0.1', 800)
-soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-soc.bind(host)
-soc.listen(1)
+soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # TODO1 建立连接
+soc.bind(host) #TODO2 绑定(ip,port)
+soc.listen(1)  #TODO3 listen
 # 压缩比 1-100 数值越小，压缩比越高，图片质量损失越严重
 IMQUALITY = 50
 
 lock = threading.Lock()
-
-# if sys.platform == "win32":
-#     from ._keyboard_win import keycodeMapping
-# elif platform.system() == "Linux":
-#     from ._keyboard_x11 import keycodeMapping
-# elif sys.platform == "darwin":
-#     from ._keyboard_osx import keycodeMapping
-
-
 def ctrl(conn):
     '''
     读取控制命令，并在本机还原操作
@@ -75,7 +66,7 @@ def ctrl(conn):
     try:
         plat = b''
         while True:
-            plat += conn.recv(3-len(plat))
+            plat += conn.recv(3-len(plat)) # recv here platform info ?? 
             if len(plat) == 3:
                 break
         print("Plat:", plat.decode())
@@ -85,7 +76,7 @@ def ctrl(conn):
             cmd = b''
             rest = base_len - 0
             while rest > 0:
-                cmd += conn.recv(rest)
+                cmd += conn.recv(rest) #TODO recv 得到控制info
                 rest -= len(cmd)
             key = cmd[0]
             op = cmd[1]
@@ -113,8 +104,8 @@ def handle(conn):
         img = cv2.imdecode(imnp, cv2.IMREAD_COLOR)
     lock.release()
     lenb = struct.pack(">BI", 1, len(imbyt))
-    conn.sendall(lenb)
-    conn.sendall(imbyt)
+    conn.sendall(lenb) #! sendall
+    conn.sendall(imbyt) #! sendall
     while True:
         # fix for linux
         time.sleep(IDLE)
@@ -140,16 +131,16 @@ def handle(conn):
         if l1 > l2:
             # 传差异化图像
             lenb = struct.pack(">BI", 0, l2) #  bi = struct.pack(">I",234) =>  bi-> bi[0],bi[1],bi[2],bi[3] 4字节
-            conn.sendall(lenb)
-            conn.sendall(imb)
+            conn.sendall(lenb) #TODO sendall 回传图像 ↓4
+            conn.sendall(imb) #!发送完整的TCP数据，成功返回None，失败抛出异常
         else:
             # 传原编码图像
             lenb = struct.pack(">BI", 1, l1)
-            conn.sendall(lenb)
-            conn.sendall(imbyt)
+            conn.sendall(lenb) #!
+            conn.sendall(imbyt) #!
 
 
 while True:
-    conn, addr = soc.accept()
-    threading.Thread(target=handle, args=(conn,)).start()
+    conn, addr = soc.accept() # TODO4 接受连接
+    threading.Thread(target=handle, args=(conn,)).start() #! con is what ?? => data_socket? 
     threading.Thread(target=ctrl, args=(conn,)).start()
