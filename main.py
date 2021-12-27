@@ -24,7 +24,7 @@ wscale = False
 # 屏幕显示画布
 showcan = None
 # socket缓冲区大小
-bufsize = 10240
+bufsize = 65536
 # 线程
 th = None
 # socket
@@ -231,17 +231,19 @@ def run():
     conserver = ('127.0.0.1', 800)
     # 发送平台信息
     soc.sendto(PLAT,conserver)
-    lenb,addr = soc.recvfrom(5)
-    imtype, le = struct.unpack(">BI", lenb)
+    # lenb,addr = soc.recvfrom(5)
+    # imtype, le = struct.unpack(">BI", lenb)
+    da,_ = soc.recvfrom(bufsize)
     imb = b''
-    while le > bufsize:
-        t,addr = soc.recvfrom(bufsize)
-        imb += t
-        le -= len(t)
-    while le > 0:
-        t, addr = soc.recvfrom(le)
-        imb += t
-        le -= len(t)
+    imb += da
+    # while le > bufsize:
+    #     t,addr = soc.recvfrom(bufsize)
+    #     imb += t
+    #     le -= len(t)
+    # while le > 0:
+    #     t, addr = soc.recvfrom(le)
+    #     imb += t
+    #     le -= len(t)
     data = np.frombuffer(imb, dtype=np.uint8)
     img = cv2.imdecode(data, cv2.IMREAD_COLOR)
     h, w, _ = img.shape
@@ -263,25 +265,29 @@ def run():
             cv.config(width=w, height=h)
             wscale = False
         try:
-            lenb,addr = soc.recvfrom(5)
-            imtype, le = struct.unpack(">BI", lenb)
+            da, _ = soc.recvfrom(bufsize)
             imb = b''
-            while le > bufsize:
-                t, addr = soc.recvfrom(bufsize)
-                imb += t
-                le -= len(t)
-            while le > 0:
-                t,addr = soc.recvfrom(le)
-                imb += t
-                le -= len(t)
+            imb += da
+            #lenb,addr = soc.recvfrom(5)
+            # imtype, le = struct.unpack(">BI", lenb)
+            # imb = b''
+            # while le > bufsize:
+            #     t, addr = soc.recvfrom(bufsize)
+            #     imb += t
+            #     le -= len(t)
+            # while le > 0:
+            #     t,addr = soc.recvfrom(le)
+            #     imb += t
+            #     le -= len(t)
             data = np.frombuffer(imb, dtype=np.uint8)
             ims = cv2.imdecode(data, cv2.IMREAD_COLOR)
-            if imtype == 1:
-                # 全传
-                img = ims
-            else:
-                # 差异传
-                img = img ^ ims
+            # if imtype == 1:
+            #     # 全传
+            #     img = ims
+            # else:
+            #     # 差异传
+            #     img = img ^ ims
+            img = ims
             imt = cv2.resize(img, (w, h))
             imsh = cv2.cvtColor(imt, cv2.COLOR_RGB2RGBA)
             imi = Image.fromarray(imsh)

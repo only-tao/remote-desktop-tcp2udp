@@ -1,6 +1,7 @@
 import struct
 import socket
 from PIL import ImageGrab
+from PIL import Image
 from cv2 import cv2
 import numpy as np
 import threading
@@ -8,14 +9,16 @@ import time
 import pyautogui as ag
 import mouse
 from keyboard import getKeycodeMapping
+import io
 
 # 作为server服务器
 # 画面周期
 IDLE = 0.05
 # 鼠标滚轮灵敏度
 SCROLL_NUM = 5
-bufsize = 1024
+bufsize = 65536
 host = ('127.0.0.1', 800)
+addrc = ()
 # soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 # soc.bind(host)
 # soc.listen(1)
@@ -40,7 +43,7 @@ def ctrl(conn, ):
     读取控制命令，并在本机还原操作
     '''
     keycodeMapping = {}
-    global addrc
+
     def Op(key, op, ox, oy):
         # print(key, op, ox, oy)
         if key == 4:
@@ -106,86 +109,105 @@ def ctrl(conn, ):
 
 
 # 压缩后np图像
-img = None
+image_old_decode = None
 # 编码后的图像
-imbyt = None
+image_grab_new = None
 
 
 def handle(conn, ):
-    global img, imbyt, addrc
-    data, addr = conn.recvfrom(5)
-    addrc = addr
+    global image_old_decode, image_grab_new
     lock.acquire()
-    if imbyt is None:
-        imorg = np.asarray(ImageGrab.grab())  # cut screen
-        _, imbyt = cv2.imencode(
-            ".jpg", imorg, [cv2.IMWRITE_JPEG_QUALITY, IMQUALITY])  # change to jpg?
-        imnp = np.asarray(imbyt, np.uint8)
-        img = cv2.imdecode(imnp, cv2.IMREAD_COLOR)
+    if image_grab_new is None:
+        image_grab = ImageGrab.grab()
+        # 添加压缩代码##
+        compress_rate = 0.1
+        heigh, width = image_grab.height,image_grab.width
+        img = cv2.cvtColor(np.asarray(image_grab), cv2.COLOR_RGB2BGR)
+        image_resize = cv2.resize(img, (int(heigh * compress_rate), int(width * compress_rate)),
+                                  interpolation=cv2.INTER_AREA)
+        image_grab = Image.fromarray(cv2.cvtColor(image_resize,cv2.COLOR_BGR2RGB))
+        image_original_array = np.asarray(image_grab)  # cut screen
+        _, image_grab_new = cv2.imencode(
+            ".jpg", image_original_array, [cv2.IMWRITE_JPEG_QUALITY, IMQUALITY])  # change to jpg?
+        image_new_array = np.asarray(image_grab_new, np.uint8)
+        image_old_decode = cv2.imdecode(image_new_array, cv2.IMREAD_COLOR)
     lock.release()
-    lenb = struct.pack(">BI", 1, len(imbyt))
-    conn.sendto(lenb, addrc)
-    for i in range(len(imbyt) // 1024 + 1):
-        if 1024 * (i + 1) > len(imbyt):
-            conn.sendto(imbyt[1024 * i:], addrc)
-        else:
-            conn.sendto(imbyt[1024 * i:1024 * (i + 1)], addrc)
+    lenb = struct.pack(">BI", 1, len(image_grab_new))
+    conn.sendto(image_grab_new, addrc)
+    # conn.sendto(lenb, addrc)
+    # for i in range(len(image_grab_new) // bufsize + 1):
+    #     if bufsize * (i + 1) > len(image_grab_new):
+    #         conn.sendto(image_grab_new[bufsize * i:], addrc)
+    #     else:
+    #         conn.sendto(image_grab_new[bufsize * i:bufsize * (i + 1)], addrc)
     # conn.sendall(lenb)
-    # conn.sendall(imbyt)
+    # conn.sendall(image_grab_new)
     while True:
         # fix for linux
         time.sleep(IDLE)
-        gb = ImageGrab.grab()
-        imgnpn = np.asarray(gb)
+        image_grab = ImageGrab.grab()
+        compress_rate = 0.1
+        heigh, width = image_grab.height, image_grab.width
+        img = cv2.cvtColor(np.asarray(image_grab), cv2.COLOR_RGB2BGR)
+        image_resize = cv2.resize(img, (int(heigh * compress_rate), int(width * compress_rate)),
+                                  interpolation=cv2.INTER_AREA)
+        image_grab = Image.fromarray(cv2.cvtColor(image_resize, cv2.COLOR_BGR2RGB))
+        imgnpn = np.asarray(image_grab)
         _, timbyt = cv2.imencode(
             ".jpg", imgnpn, [cv2.IMWRITE_JPEG_QUALITY, IMQUALITY])
-        imnp = np.asarray(timbyt, np.uint8)
-        imgnew = cv2.imdecode(imnp, cv2.IMREAD_COLOR)
+        image_new_array = np.asarray(timbyt, np.uint8)
+        imgnew = cv2.imdecode(image_new_array, cv2.IMREAD_COLOR)
         # 计算图像差值
-        imgs = imgnew ^ img
+        imgs = imgnew ^ image_old_decode
         if (imgs != 0).any():
             # 画质改变
             pass
         else:
             continue
-        imbyt = timbyt
-        img = imgnew
+        image_grab_new = timbyt
+        image_old_decode = imgnew
         # 无损压缩
-        _, imb = cv2.imencode(".png", imgs)
-        l1 = len(imbyt)  # 原图像大小
-        l2 = len(imb)  # 差异图像大小
-        if l1 > l2:
+        _, image_diff_encode = cv2.imencode(".png", imgs)
+        l1 = len(image_grab_new)  # 原图像大小
+        l2 = len(image_diff_encode)  # 差异图像大小
+        if False:#l1 > l2:
             # 传差异化图像
             lenb = struct.pack(">BI", 0, l2)  # bi = struct.pack(">I",234) =>  bi-> bi[0],bi[1],bi[2],bi[3] 4字节
             conn.sendto(lenb, addrc)
-            for i in range(len(imbyt) // 1024 + 1):
-                if 1024 * (i + 1) > len(imbyt):
-                    conn.sendto(imbyt[1024 * i:], addrc)
+            for i in range(len(image_grab_new) // bufsize + 1):
+                if bufsize * (i + 1) > len(image_grab_new):
+                    conn.sendto(image_grab_new[bufsize * i:], addrc)
                 else:
-                    conn.sendto(imbyt[1024 * i:1024 * (i + 1)], addrc)
+                    conn.sendto(image_grab_new[bufsize * i:bufsize * (i + 1)], addrc)
             # conn.sendall(lenb)
-            # conn.sendall(imb)
+            # conn.sendall(image_diff_encode)
         else:
             # 传原编码图像
-            lenb = struct.pack(">BI", 1, l1)
-            conn.sendto(lenb, addrc)
-            for i in range(len(imbyt) // 1024 + 1):
-                if 1024 * (i + 1) > len(imbyt):
-                    conn.sendto(imbyt[1024 * i:], addrc)
-                else:
-                    conn.sendto(imbyt[1024 * i:1024 * (i + 1)], addrc)
+            conn.sendto(image_grab_new,addrc)
+            # lenb = struct.pack(">BI", 1, l1)
+            # conn.sendto(lenb, addrc)
+            # for i in range(len(image_grab_new) // bufsize + 1):
+            #     if bufsize * (i + 1) > len(image_grab_new):
+            #         conn.sendto(image_grab_new[bufsize * i:], addrc)
+            #     else:
+            #         conn.sendto(image_grab_new[bufsize * i:bufsize * (i + 1)], addrc)
             # conn.sendall(lenb)
-            # conn.sendall(imbyt)
+            # conn.sendall(image_grab_new)
 
 
-def main():
-    # conn, addr = soc.accept()
-    # data,addr = conn.recvfrom(1024)
-    #threading.Thread(target=handle, args=(conn, )).start()
-    #threading.Thread(target=ctrl, args=(conn, )).start()
-    handle(conn)
-    ctrl(conn)
+# def main():
+# conn, addr = soc.accept()
+while True:
+    _, addr = conn.recvfrom(5)
+    addrc = addr
+    t1 = threading.Thread(target=handle, args=(conn,))
+    t2 = threading.Thread(target=ctrl, args=(conn,))
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+    # handle(conn)
+    # ctrl(conn)
 
-
-if __name__ == '__main__':
-    main()
+# if __name__ == '__main__':
+#     main()
