@@ -24,7 +24,7 @@ wscale = False
 # 屏幕显示画布
 showcan = None
 # socket缓冲区大小
-bufsize = 10240
+bufsize = 65536
 # 线程
 th = None
 # socket
@@ -231,21 +231,29 @@ def run():
     conserver = ('127.0.0.1', 800)
     # 发送平台信息
     soc.sendto(PLAT,conserver)
-    lenb,addr = soc.recvfrom(5)
-    imtype, le = struct.unpack(">BI", lenb)
+    # lenb,addr = soc.recvfrom(5)
+    # imtype, le = struct.unpack(">BI", lenb)
+    da,_ = soc.recvfrom(bufsize)
     imb = b''
-    while le > bufsize:
-        t,addr = soc.recvfrom(bufsize)
-        imb += t
-        le -= len(t)
-    while le > 0:
-        t, addr = soc.recvfrom(le)
-        imb += t
-        le -= len(t)
+    imb += da
+    # while le > bufsize:
+    #     t,addr = soc.recvfrom(bufsize)
+    #     imb += t
+    #     le -= len(t)
+    # while le > 0:
+    #     t, addr = soc.recvfrom(le)
+    #     imb += t
+    #     le -= len(t)
     data = np.frombuffer(imb, dtype=np.uint8)
     img = cv2.imdecode(data, cv2.IMREAD_COLOR)
     h, w, _ = img.shape
-    fixh, fixw = h, w
+    # change the size of img
+    compress_rate = 1
+    # image_resize = cv2.resize(img, (int(h * compress_rate), int(w * compress_rate)),
+    #                           interpolation=cv2.INTER_AREA)
+    # img = image_resize #Image.fromarray(cv2.cvtColor(image_resize, cv2.COLOR_BGR2RGB))
+
+    fixh, fixw = h*compress_rate, w*compress_rate
     imsh = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
     imi = Image.fromarray(imsh)
     imgTK = ImageTk.PhotoImage(image=imi)
@@ -263,25 +271,33 @@ def run():
             cv.config(width=w, height=h)
             wscale = False
         try:
-            lenb,addr = soc.recvfrom(5)
-            imtype, le = struct.unpack(">BI", lenb)
+            da, _ = soc.recvfrom(bufsize)
             imb = b''
-            while le > bufsize:
-                t, addr = soc.recvfrom(bufsize)
-                imb += t
-                le -= len(t)
-            while le > 0:
-                t,addr = soc.recvfrom(le)
-                imb += t
-                le -= len(t)
+            imb += da
+            #lenb,addr = soc.recvfrom(5)
+            # imtype, le = struct.unpack(">BI", lenb)
+            # imb = b''
+            # while le > bufsize:
+            #     t, addr = soc.recvfrom(bufsize)
+            #     imb += t
+            #     le -= len(t)
+            # while le > 0:
+            #     t,addr = soc.recvfrom(le)
+            #     imb += t
+            #     le -= len(t)
             data = np.frombuffer(imb, dtype=np.uint8)
             ims = cv2.imdecode(data, cv2.IMREAD_COLOR)
-            if imtype == 1:
-                # 全传
-                img = ims
-            else:
-                # 差异传
-                img = img ^ ims
+            compress_rate = 1
+            # image_resize = cv2.resize(ims, (int(h * compress_rate), int(w * compress_rate)),
+            #                           interpolation=cv2.INTER_AREA)
+            # ims = image_resize  # Image.fromarray(cv2.cvtColor(image_resize, cv2.COLOR_BGR2RGB))
+            # if imtype == 1:
+            #     # 全传
+            #     img = ims
+            # else:
+            #     # 差异传
+            #     img = img ^ ims
+            img = ims
             imt = cv2.resize(img, (w, h))
             imsh = cv2.cvtColor(imt, cv2.COLOR_RGB2RGBA)
             imi = Image.fromarray(imsh)
