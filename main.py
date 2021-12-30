@@ -30,7 +30,7 @@ showcan = None
 # socket缓冲区大小
 bufsize = 10240
 # 线程
-th = None
+thread = None
 # socket
 soc = None
 # socks5
@@ -47,58 +47,19 @@ elif platform.system() == "Linux":
 def SetSocket():
     global soc, host_en
 
-    def byipv4(ip, port):
-        return struct.pack(">BBBBBBBBH", 5, 1, 0, 1, ip[0], ip[1], ip[2], ip[3], port)
-
-    def byhost(host, port):
-        d = struct.pack(">BBBB", 5, 1, 0, 3)
-        blen = len(host)
-        d += struct.pack(">B", blen)
-        d += host.encode()
-        d += struct.pack(">H", port)
-        return d
     host = host_en.get() # 得到host_en 内的内容，（就是输入框内的内容）
     if host is None:
         tkinter.messagebox.showinfo('提示', 'Host设置错误！')
         return
-    hs = host.split(":")
-    if len(hs) != 2:
+    host_split = host.split(":")
+    if len(host_split) != 2:
         tkinter.messagebox.showinfo('提示', 'Host设置错误！')
         return
-    if socks5 is not None: # 没有设置socks5那么这个就是None
-        ss = socks5.split(":")
-        if len(ss) != 2:
-            tkinter.messagebox.showinfo('提示', '代理设置错误！')
-            return
-        soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        soc.connect((ss[0], int(ss[1])))
-        soc.sendall(struct.pack(">BB", 5, 0))
-        recv = soc.recv(2)
-        if recv[1] != 0:
-            tkinter.messagebox.showinfo('提示', '代理回应错误！')
-            return
-        if re.match(r'^\d+?\.\d+?\.\d+?\.\d+?:\d+$', host) is None:
-            # host 域名访问
-            hand = byhost(hs[0], int(hs[1]))
-            soc.sendall(hand)
-        else:
-            # host ip访问
-            ip = [int(i) for i in hs[0].split(".")]
-            port = int(hs[1])
-            hand = byipv4(ip, port)
-            soc.sendall(hand)
-        # 代理回应
-        rcv = b''
-        while len(rcv) != 10:
-            rcv += soc.recv(10-len(rcv))
-        if rcv[1] != 0:
-            tkinter.messagebox.showinfo('提示', '代理回应错误！')
-            return
     else:
-        soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
+        soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         #TODO1tcp 定义+连接，作为客户端 in SetSocket()
         #! connect(ip,port)   
-        soc.connect((hs[0], int(hs[1])))                         
+        soc.connect((host_split[0], int(host_split[1])))
         #!2 现在查找数据从哪里来
 # 通过移动滑条设置窗口的Scale
 def SetScale(x):
@@ -107,12 +68,12 @@ def SetScale(x):
     wscale = True
 
 def ShowScreen():
-    global showcan, root, soc, th, wscale
+    global showcan, root, soc, thread, wscale
     if showcan is None:
         wscale = True
         showcan = tkinter.Toplevel(root)
-        th = threading.Thread(target=run)
-        th.start()
+        thread = threading.Thread(target=run)
+        thread.start()
     else:
         soc.close()
         showcan.destroy()
@@ -134,21 +95,20 @@ val = tkinter.StringVar()
 host_lab = tkinter.Label(root, text="Host:") # host:...
 host_en = tkinter.Entry(root, show=None, font=('Arial', 14), textvariable=val)
 sca_lab = tkinter.Label(root, text="Scale:") # scale的按钮
-sca = tkinter.Scale(root, from_=10, to=100, orient=tkinter.HORIZONTAL, length=100,
+window_scale = tkinter.Scale(root, from_=10, to=100, orient=tkinter.HORIZONTAL, length=100,
                     showvalue=100, resolution=0.1, tickinterval=50, command=SetScale)
                     # 设置窗口scale
-# proxy_btn = tkinter.Button(root, text="Proxy", command=ShowProxy) # 代理的按钮
 show_btn = tkinter.Button(root, text="Show", command=ShowScreen)  # show 的按钮配置
 gesture_btn = tkinter.Button(root, text="gesture", command=use_gesture)
 #按钮设置位置
 host_lab.grid(row=0, column=0, padx=10, pady=10, ipadx=0, ipady=0)
 host_en.grid(row=0, column=1, padx=0, pady=0, ipadx=40, ipady=0) # 输入host数字的框
 sca_lab.grid(row=1, column=0, padx=10, pady=10, ipadx=0, ipady=0)
-sca.grid(row=1, column=1, padx=0, pady=0, ipadx=100, ipady=0)
+window_scale.grid(row=1, column=1, padx=0, pady=0, ipadx=100, ipady=0)
 gesture_btn.grid(row=2, column=0, padx=0, pady=10, ipadx=30, ipady=0)
 show_btn.grid(row=2, column=1, padx=0, pady=10, ipadx=30, ipady=0)
 # gesture_btn.grid()  # 原本gesture的位置是(2,0)
-sca.set(100)
+window_scale.set(100)
 val.set('127.0.0.1:800')# 设置初始值
 
 last_send = time.time()
@@ -224,61 +184,61 @@ def run():
     SetSocket() # 设置tcp连接与socks5代理
     # 发送平台信息
     soc.sendall(PLAT)
-    lenb = soc.recv(5) #TODO2 得到infomation in run()
-    imtype, le = struct.unpack(">BI", lenb)
-    imb = b''# 之后按照一定的规则处理数据=> imb get lenb(length)
-    while le > bufsize:  
-        t = soc.recv(bufsize)
-        imb += t
-        le -= len(t)
-    while le > 0:
-        t = soc.recv(le)
-        imb += t
-        le -= len(t)
-    data = np.frombuffer(imb, dtype=np.uint8)
-    img = cv2.imdecode(data, cv2.IMREAD_COLOR)
-    h, w, _ = img.shape
-    fixh, fixw = h, w
-    imsh = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
-    imi = Image.fromarray(imsh)
-    imgTK = ImageTk.PhotoImage(image=imi)
-    cv = tkinter.Canvas(showcan, width=w, height=h, bg="white")
-    cv.focus_set()
-    BindEvents(cv)
-    cv.pack()
-    cv.create_image(0, 0, anchor=tkinter.NW, image=imgTK)
-    h = int(h * scale)
-    w = int(w * scale)
+    length_bytes = soc.recv(5) #TODO2 得到infomation in run()
+    imtype, length = struct.unpack(">BI", length_bytes)
+    image_bytes = b''# 之后按照一定的规则处理数据=> image_bytes get length_bytes(length)
+    while length > bufsize:  
+        temporary = soc.recv(bufsize)
+        image_bytes += temporary
+        length -= len(temporary)
+    while length > 0:
+        temporary = soc.recv(length)
+        image_bytes += temporary
+        length -= len(temporary)
+    data = np.frombuffer(image_bytes, dtype=np.uint8)
+    image_seg = cv2.imdecode(data, cv2.IMREAD_COLOR)
+    heigh, width, _ = image_seg.shape
+    fixh, fixw = heigh, width
+    imsh = cv2.cvtColor(image_seg, cv2.COLOR_BGR2RGBA)
+    image_array = Image.fromarray(imsh)
+    imgTK = ImageTk.PhotoImage(image=image_array)
+    canvas = tkinter.Canvas(showcan, width=width, height=heigh, bg="white")
+    canvas.focus_set()
+    BindEvents(canvas)
+    canvas.pack()
+    canvas.create_image(0, 0, anchor=tkinter.NW, image=imgTK)
+    heigh = int(heigh * scale)
+    width = int(width * scale)
     while True:
         if wscale:
-            h = int(fixh * scale)
-            w = int(fixw * scale)
-            cv.config(width=w, height=h)
+            heigh = int(fixh * scale)
+            width = int(fixw * scale)
+            canvas.config(width=width, height=heigh)
             wscale = False
         try:
-            lenb = soc.recv(5)
-            imtype, le = struct.unpack(">BI", lenb)
-            imb = b''
-            while le > bufsize:
-                t = soc.recv(bufsize)
-                imb += t
-                le -= len(t)
-            while le > 0:
-                t = soc.recv(le)
-                imb += t
-                le -= len(t)
-            data = np.frombuffer(imb, dtype=np.uint8)
+            length_bytes = soc.recv(5)
+            imtype, length = struct.unpack(">BI", length_bytes)
+            image_bytes = b''
+            while length > bufsize:
+                temporary = soc.recv(bufsize)
+                image_bytes += temporary
+                length -= len(temporary)
+            while length > 0:
+                temporary = soc.recv(length)
+                image_bytes += temporary
+                length -= len(temporary)
+            data = np.frombuffer(image_bytes, dtype=np.uint8)
             ims = cv2.imdecode(data, cv2.IMREAD_COLOR)
             if imtype == 1:
                 # 全传
-                img = ims
+                image_seg = ims
             else:
                 # 差异传
-                img = img ^ ims
-            imt = cv2.resize(img, (w, h))
+                image_seg = image_seg ^ ims
+            imt = cv2.resize(image_seg, (width, heigh))
             imsh = cv2.cvtColor(imt, cv2.COLOR_RGB2RGBA)
-            imi = Image.fromarray(imsh)
-            imgTK.paste(imi)
+            image_array = Image.fromarray(imsh)
+            imgTK.paste(image_array)
         except:
             showcan = None
             ShowScreen()

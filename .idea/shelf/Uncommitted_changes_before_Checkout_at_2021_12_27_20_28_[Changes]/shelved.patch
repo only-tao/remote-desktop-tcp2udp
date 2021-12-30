@@ -1,0 +1,358 @@
+Index: main.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import tkinter\r\nimport tkinter.messagebox\r\nimport struct\r\nimport socket\r\nimport numpy as np\r\nfrom PIL import Image, ImageTk\r\nimport threading\r\nimport re\r\nfrom cv2 import cv2\r\nimport time\r\nimport sys\r\nimport platform\r\n\r\nimport mediapipe as mp\r\nimport pyautogui\r\nfrom gesture import hand_gesture\r\n# import cv2\r\nroot = tkinter.Tk()\r\n\r\n# 画面周期\r\nIDLE = 0.05\r\n# 放缩大小\r\nscale = 1\r\n# 原传输画面尺寸\r\nfixw, fixh = 0, 0\r\n# 放缩标志\r\nwscale = False\r\n# 屏幕显示画布\r\nshowcan = None\r\n# socket缓冲区大小\r\nbufsize = 10240\r\n# 线程\r\nth = None\r\n# socket\r\nsoc = None\r\n# socks5\r\nsocks5 = None\r\n# 平台\r\nPLAT = b''\r\nif sys.platform == \"win32\":\r\n    PLAT = b'win'\r\nelif sys.platform == \"darwin\":\r\n    PLAT = b'osx'\r\nelif platform.system() == \"Linux\":\r\n    PLAT = b'x11'\r\n#!!!! 初始化socket\r\ndef SetSocket():\r\n    global soc, host_en\r\n\r\n    def byipv4(ip, port):\r\n        return struct.pack(\">BBBBBBBBH\", 5, 1, 0, 1, ip[0], ip[1], ip[2], ip[3], port)\r\n\r\n    def byhost(host, port):\r\n        d = struct.pack(\">BBBB\", 5, 1, 0, 3)\r\n        blen = len(host)\r\n        d += struct.pack(\">B\", blen)\r\n        d += host.encode()\r\n        d += struct.pack(\">H\", port)\r\n        return d\r\n    host = host_en.get() # 得到host_en 内的内容，（就是输入框内的内容）\r\n    if host is None:\r\n        tkinter.messagebox.showinfo('提示', 'Host设置错误！')\r\n        return\r\n    hs = host.split(\":\")\r\n    if len(hs) != 2:\r\n        tkinter.messagebox.showinfo('提示', 'Host设置错误！')\r\n        return\r\n    if socks5 is not None: # 没有设置socks5那么这个就是None\r\n        ss = socks5.split(\":\")\r\n        if len(ss) != 2:\r\n            tkinter.messagebox.showinfo('提示', '代理设置错误！')\r\n            return\r\n        soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\r\n        soc.connect((ss[0], int(ss[1])))\r\n        soc.sendall(struct.pack(\">BB\", 5, 0))\r\n        recv = soc.recv(2)\r\n        if recv[1] != 0:\r\n            tkinter.messagebox.showinfo('提示', '代理回应错误！')\r\n            return\r\n        if re.match(r'^\\d+?\\.\\d+?\\.\\d+?\\.\\d+?:\\d+$', host) is None:\r\n            # host 域名访问\r\n            hand = byhost(hs[0], int(hs[1]))\r\n            soc.sendall(hand)\r\n        else:\r\n            # host ip访问\r\n            ip = [int(i) for i in hs[0].split(\".\")]\r\n            port = int(hs[1])\r\n            hand = byipv4(ip, port)\r\n            soc.sendall(hand)\r\n        # 代理回应\r\n        rcv = b''\r\n        while len(rcv) != 10:\r\n            rcv += soc.recv(10-len(rcv))\r\n        if rcv[1] != 0:\r\n            tkinter.messagebox.showinfo('提示', '代理回应错误！')\r\n            return\r\n    else:\r\n        soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM) \r\n        #TODO1tcp 定义+连接，作为客户端 in SetSocket()\r\n        #! connect(ip,port)   \r\n        soc.connect((hs[0], int(hs[1])))                         \r\n        #!2 现在查找数据从哪里来\r\n# 通过移动滑条设置窗口的Scale\r\ndef SetScale(x):\r\n    global scale, wscale\r\n    scale = float(x) / 100\r\n    wscale = True\r\nclick_times = 0\r\n\r\ndef ShowScreen():\r\n    global showcan, root, soc, th, wscale\r\n    if showcan is None:\r\n        wscale = True\r\n        showcan = tkinter.Toplevel(root)\r\n        th = threading.Thread(target=run)\r\n        th.start()\r\n    else:\r\n        soc.close()\r\n        showcan.destroy()\r\nstop_threads = False\r\ndef check_gesture():\r\n    global click_times\r\n    while 1: \r\n        # print(\"You use gesture {}\".format(click_times))\r\n        # click_times +=1\r\n        # time.sleep(1)\r\n        hand_gesture()\r\n        if stop_threads==True:\r\n            break\r\n\r\n\r\nrun_gesture = 0 \r\n\r\ndef use_gesture():\r\n    global run_gesture\r\n    global stop_threads\r\n    th2 = threading.Thread(target=check_gesture)\r\n    if run_gesture==0:\r\n        stop_threads = False\r\n        run_gesture = 1\r\n        th2.start()\r\n    elif run_gesture==1:\r\n        run_gesture=0\r\n        stop_threads = True\r\n        th2.join()\r\n        # th2.raise_exception()   \r\n# GUI的排版\r\nval = tkinter.StringVar()\r\nhost_lab = tkinter.Label(root, text=\"Host:\") # host:...\r\nhost_en = tkinter.Entry(root, show=None, font=('Arial', 14), textvariable=val)\r\nsca_lab = tkinter.Label(root, text=\"Scale:\") # scale的按钮\r\nsca = tkinter.Scale(root, from_=10, to=100, orient=tkinter.HORIZONTAL, length=100,\r\n                    showvalue=100, resolution=0.1, tickinterval=50, command=SetScale)\r\n                    # 设置窗口scale\r\n# proxy_btn = tkinter.Button(root, text=\"Proxy\", command=ShowProxy) # 代理的按钮\r\nshow_btn = tkinter.Button(root, text=\"Show\", command=ShowScreen)  # show 的按钮配置\r\ngesture_btn = tkinter.Button(root, text=\"gesture\", command=use_gesture)\r\n#按钮设置位置\r\nhost_lab.grid(row=0, column=0, padx=10, pady=10, ipadx=0, ipady=0)\r\nhost_en.grid(row=0, column=1, padx=0, pady=0, ipadx=40, ipady=0) # 输入host数字的框\r\nsca_lab.grid(row=1, column=0, padx=10, pady=10, ipadx=0, ipady=0)\r\nsca.grid(row=1, column=1, padx=0, pady=0, ipadx=100, ipady=0)\r\ngesture_btn.grid(row=2, column=0, padx=0, pady=10, ipadx=30, ipady=0)\r\nshow_btn.grid(row=2, column=1, padx=0, pady=10, ipadx=30, ipady=0)\r\n# gesture_btn.grid()  # 原本gesture的位置是(2,0)\r\nsca.set(100)\r\nval.set('127.0.0.1:800')# 设置初始值\r\n\r\nlast_send = time.time()\r\n\r\n\r\n\r\ndef BindEvents(canvas):\r\n    global soc, scale\r\n    '''\r\n    处理事件\r\n    '''\r\n    def EventDo(data):\r\n        soc.sendall(data)\r\n    # 鼠标左键\r\n\r\n    def LeftDown(e):\r\n        return EventDo(struct.pack('>BBHH', 1, 100, int(e.x/scale), int(e.y/scale)))\r\n\r\n    def LeftUp(e):\r\n        return EventDo(struct.pack('>BBHH', 1, 117, int(e.x/scale), int(e.y/scale)))\r\n    canvas.bind(sequence=\"<1>\", func=LeftDown)\r\n    canvas.bind(sequence=\"<ButtonRelease-1>\", func=LeftUp)\r\n\r\n    # 鼠标右键\r\n    def RightDown(e):\r\n        return EventDo(struct.pack('>BBHH', 3, 100, int(e.x/scale), int(e.y/scale)))\r\n\r\n    def RightUp(e):\r\n        return EventDo(struct.pack('>BBHH', 3, 117, int(e.x/scale), int(e.y/scale)))\r\n    canvas.bind(sequence=\"<3>\", func=RightDown)\r\n    canvas.bind(sequence=\"<ButtonRelease-3>\", func=RightUp)\r\n\r\n    # 鼠标滚轮\r\n    if PLAT == b'win' or PLAT == 'osx':\r\n        # windows/mac\r\n        def Wheel(e):\r\n            if e.delta < 0:\r\n                return EventDo(struct.pack('>BBHH', 2, 0, int(e.x/scale), int(e.y/scale)))\r\n            else:\r\n                return EventDo(struct.pack('>BBHH', 2, 1, int(e.x/scale), int(e.y/scale)))\r\n        canvas.bind(sequence=\"<MouseWheel>\", func=Wheel)\r\n    elif PLAT == b'x11':\r\n        def WheelDown(e):\r\n            return EventDo(struct.pack('>BBHH', 2, 0, int(e.x/scale), int(e.y/scale)))\r\n        def WheelUp(e):\r\n            return EventDo(struct.pack('>BBHH', 2, 1, int(e.x/scale), int(e.y/scale)))\r\n        canvas.bind(sequence=\"<Button-4>\", func=WheelUp)\r\n        canvas.bind(sequence=\"<Button-5>\", func=WheelDown)\r\n\r\n    # 鼠标滑动\r\n    # 100ms发送一次\r\n    def Move(e):\r\n        global last_send\r\n        cu = time.time()\r\n        if cu - last_send > IDLE:\r\n            last_send = cu\r\n            sx, sy = int(e.x/scale), int(e.y/scale)\r\n            return EventDo(struct.pack('>BBHH', 4, 0, sx, sy))\r\n    canvas.bind(sequence=\"<Motion>\", func=Move)\r\n\r\n    # 键盘\r\n    def KeyDown(e):\r\n        return EventDo(struct.pack('>BBHH', e.keycode, 100, int(e.x/scale), int(e.y/scale)))\r\n\r\n    def KeyUp(e):\r\n        return EventDo(struct.pack('>BBHH', e.keycode, 117, int(e.x/scale), int(e.y/scale)))\r\n    canvas.bind(sequence=\"<KeyPress>\", func=KeyDown)\r\n    canvas.bind(sequence=\"<KeyRelease>\", func=KeyUp)\r\n\r\n# if click the \"Show\", the \"run\" will run\r\ndef run():\r\n    global wscale, fixh, fixw, soc, showcan\r\n    SetSocket() # 设置tcp连接与socks5代理\r\n    # 发送平台信息\r\n    soc.sendall(PLAT)\r\n    lenb = soc.recv(5) #TODO2 得到infomation in run()\r\n    imtype, le = struct.unpack(\">BI\", lenb)\r\n    imb = b''# 之后按照一定的规则处理数据=> imb get lenb(length)\r\n    while le > bufsize:  \r\n        t = soc.recv(bufsize)\r\n        imb += t\r\n        le -= len(t)\r\n    while le > 0:\r\n        t = soc.recv(le)\r\n        imb += t\r\n        le -= len(t)\r\n    data = np.frombuffer(imb, dtype=np.uint8)\r\n    img = cv2.imdecode(data, cv2.IMREAD_COLOR)\r\n    h, w, _ = img.shape\r\n    fixh, fixw = h, w\r\n    imsh = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)\r\n    imi = Image.fromarray(imsh)\r\n    imgTK = ImageTk.PhotoImage(image=imi)\r\n    cv = tkinter.Canvas(showcan, width=w, height=h, bg=\"white\")\r\n    cv.focus_set()\r\n    BindEvents(cv)\r\n    cv.pack()\r\n    cv.create_image(0, 0, anchor=tkinter.NW, image=imgTK)\r\n    h = int(h * scale)\r\n    w = int(w * scale)\r\n    while True:\r\n        if wscale:\r\n            h = int(fixh * scale)\r\n            w = int(fixw * scale)\r\n            cv.config(width=w, height=h)\r\n            wscale = False\r\n        try:\r\n            lenb = soc.recv(5)\r\n            imtype, le = struct.unpack(\">BI\", lenb)\r\n            imb = b''\r\n            while le > bufsize:\r\n                t = soc.recv(bufsize)\r\n                imb += t\r\n                le -= len(t)\r\n            while le > 0:\r\n                t = soc.recv(le)\r\n                imb += t\r\n                le -= len(t)\r\n            data = np.frombuffer(imb, dtype=np.uint8)\r\n            ims = cv2.imdecode(data, cv2.IMREAD_COLOR)\r\n            if imtype == 1:\r\n                # 全传\r\n                img = ims\r\n            else:\r\n                # 差异传\r\n                img = img ^ ims\r\n            imt = cv2.resize(img, (w, h))\r\n            imsh = cv2.cvtColor(imt, cv2.COLOR_RGB2RGBA)\r\n            imi = Image.fromarray(imsh)\r\n            imgTK.paste(imi)\r\n        except:\r\n            showcan = None\r\n            ShowScreen()\r\n            return\r\n\r\n\r\nroot.mainloop()\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/main.py b/main.py
+--- a/main.py	(revision 71616ffb5c13d3dc4a7c911e92124bb83f45d525)
++++ b/main.py	(date 1640608060851)
+@@ -1,303 +1,16 @@
+-import tkinter
+-import tkinter.messagebox
+-import struct
+-import socket
+-import numpy as np
+-from PIL import Image, ImageTk
+-import threading
+-import re
+-from cv2 import cv2
+-import time
+-import sys
+-import platform
+-
+-import mediapipe as mp
+-import pyautogui
+-from gesture import hand_gesture
+-# import cv2
+-root = tkinter.Tk()
++# This is a sample Python script.
+ 
+-# 画面周期
+-IDLE = 0.05
+-# 放缩大小
+-scale = 1
+-# 原传输画面尺寸
+-fixw, fixh = 0, 0
+-# 放缩标志
+-wscale = False
+-# 屏幕显示画布
+-showcan = None
+-# socket缓冲区大小
+-bufsize = 10240
+-# 线程
+-th = None
+-# socket
+-soc = None
+-# socks5
+-socks5 = None
+-# 平台
+-PLAT = b''
+-if sys.platform == "win32":
+-    PLAT = b'win'
+-elif sys.platform == "darwin":
+-    PLAT = b'osx'
+-elif platform.system() == "Linux":
+-    PLAT = b'x11'
+-#!!!! 初始化socket
+-def SetSocket():
+-    global soc, host_en
++# Press Shift+F10 to execute it or replace it with your code.
++# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+ 
+-    def byipv4(ip, port):
+-        return struct.pack(">BBBBBBBBH", 5, 1, 0, 1, ip[0], ip[1], ip[2], ip[3], port)
+ 
+-    def byhost(host, port):
+-        d = struct.pack(">BBBB", 5, 1, 0, 3)
+-        blen = len(host)
+-        d += struct.pack(">B", blen)
+-        d += host.encode()
+-        d += struct.pack(">H", port)
+-        return d
+-    host = host_en.get() # 得到host_en 内的内容，（就是输入框内的内容）
+-    if host is None:
+-        tkinter.messagebox.showinfo('提示', 'Host设置错误！')
+-        return
+-    hs = host.split(":")
+-    if len(hs) != 2:
+-        tkinter.messagebox.showinfo('提示', 'Host设置错误！')
+-        return
+-    if socks5 is not None: # 没有设置socks5那么这个就是None
+-        ss = socks5.split(":")
+-        if len(ss) != 2:
+-            tkinter.messagebox.showinfo('提示', '代理设置错误！')
+-            return
+-        soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+-        soc.connect((ss[0], int(ss[1])))
+-        soc.sendall(struct.pack(">BB", 5, 0))
+-        recv = soc.recv(2)
+-        if recv[1] != 0:
+-            tkinter.messagebox.showinfo('提示', '代理回应错误！')
+-            return
+-        if re.match(r'^\d+?\.\d+?\.\d+?\.\d+?:\d+$', host) is None:
+-            # host 域名访问
+-            hand = byhost(hs[0], int(hs[1]))
+-            soc.sendall(hand)
+-        else:
+-            # host ip访问
+-            ip = [int(i) for i in hs[0].split(".")]
+-            port = int(hs[1])
+-            hand = byipv4(ip, port)
+-            soc.sendall(hand)
+-        # 代理回应
+-        rcv = b''
+-        while len(rcv) != 10:
+-            rcv += soc.recv(10-len(rcv))
+-        if rcv[1] != 0:
+-            tkinter.messagebox.showinfo('提示', '代理回应错误！')
+-            return
+-    else:
+-        soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
+-        #TODO1tcp 定义+连接，作为客户端 in SetSocket()
+-        #! connect(ip,port)   
+-        soc.connect((hs[0], int(hs[1])))                         
+-        #!2 现在查找数据从哪里来
+-# 通过移动滑条设置窗口的Scale
+-def SetScale(x):
+-    global scale, wscale
+-    scale = float(x) / 100
+-    wscale = True
+-click_times = 0
++def print_hi(name):
++    # Use a breakpoint in the code line below to debug your script.
++    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+ 
+-def ShowScreen():
+-    global showcan, root, soc, th, wscale
+-    if showcan is None:
+-        wscale = True
+-        showcan = tkinter.Toplevel(root)
+-        th = threading.Thread(target=run)
+-        th.start()
+-    else:
+-        soc.close()
+-        showcan.destroy()
+-stop_threads = False
+-def check_gesture():
+-    global click_times
+-    while 1: 
+-        # print("You use gesture {}".format(click_times))
+-        # click_times +=1
+-        # time.sleep(1)
+-        hand_gesture()
+-        if stop_threads==True:
+-            break
+ 
++# Press the green button in the gutter to run the script.
++if __name__ == '__main__':
++    print_hi('PyCharm')
+ 
+-run_gesture = 0 
+-
+-def use_gesture():
+-    global run_gesture
+-    global stop_threads
+-    th2 = threading.Thread(target=check_gesture)
+-    if run_gesture==0:
+-        stop_threads = False
+-        run_gesture = 1
+-        th2.start()
+-    elif run_gesture==1:
+-        run_gesture=0
+-        stop_threads = True
+-        th2.join()
+-        # th2.raise_exception()   
+-# GUI的排版
+-val = tkinter.StringVar()
+-host_lab = tkinter.Label(root, text="Host:") # host:...
+-host_en = tkinter.Entry(root, show=None, font=('Arial', 14), textvariable=val)
+-sca_lab = tkinter.Label(root, text="Scale:") # scale的按钮
+-sca = tkinter.Scale(root, from_=10, to=100, orient=tkinter.HORIZONTAL, length=100,
+-                    showvalue=100, resolution=0.1, tickinterval=50, command=SetScale)
+-                    # 设置窗口scale
+-# proxy_btn = tkinter.Button(root, text="Proxy", command=ShowProxy) # 代理的按钮
+-show_btn = tkinter.Button(root, text="Show", command=ShowScreen)  # show 的按钮配置
+-gesture_btn = tkinter.Button(root, text="gesture", command=use_gesture)
+-#按钮设置位置
+-host_lab.grid(row=0, column=0, padx=10, pady=10, ipadx=0, ipady=0)
+-host_en.grid(row=0, column=1, padx=0, pady=0, ipadx=40, ipady=0) # 输入host数字的框
+-sca_lab.grid(row=1, column=0, padx=10, pady=10, ipadx=0, ipady=0)
+-sca.grid(row=1, column=1, padx=0, pady=0, ipadx=100, ipady=0)
+-gesture_btn.grid(row=2, column=0, padx=0, pady=10, ipadx=30, ipady=0)
+-show_btn.grid(row=2, column=1, padx=0, pady=10, ipadx=30, ipady=0)
+-# gesture_btn.grid()  # 原本gesture的位置是(2,0)
+-sca.set(100)
+-val.set('127.0.0.1:800')# 设置初始值
+-
+-last_send = time.time()
+-
+-
+-
+-def BindEvents(canvas):
+-    global soc, scale
+-    '''
+-    处理事件
+-    '''
+-    def EventDo(data):
+-        soc.sendall(data)
+-    # 鼠标左键
+-
+-    def LeftDown(e):
+-        return EventDo(struct.pack('>BBHH', 1, 100, int(e.x/scale), int(e.y/scale)))
+-
+-    def LeftUp(e):
+-        return EventDo(struct.pack('>BBHH', 1, 117, int(e.x/scale), int(e.y/scale)))
+-    canvas.bind(sequence="<1>", func=LeftDown)
+-    canvas.bind(sequence="<ButtonRelease-1>", func=LeftUp)
+-
+-    # 鼠标右键
+-    def RightDown(e):
+-        return EventDo(struct.pack('>BBHH', 3, 100, int(e.x/scale), int(e.y/scale)))
+-
+-    def RightUp(e):
+-        return EventDo(struct.pack('>BBHH', 3, 117, int(e.x/scale), int(e.y/scale)))
+-    canvas.bind(sequence="<3>", func=RightDown)
+-    canvas.bind(sequence="<ButtonRelease-3>", func=RightUp)
+-
+-    # 鼠标滚轮
+-    if PLAT == b'win' or PLAT == 'osx':
+-        # windows/mac
+-        def Wheel(e):
+-            if e.delta < 0:
+-                return EventDo(struct.pack('>BBHH', 2, 0, int(e.x/scale), int(e.y/scale)))
+-            else:
+-                return EventDo(struct.pack('>BBHH', 2, 1, int(e.x/scale), int(e.y/scale)))
+-        canvas.bind(sequence="<MouseWheel>", func=Wheel)
+-    elif PLAT == b'x11':
+-        def WheelDown(e):
+-            return EventDo(struct.pack('>BBHH', 2, 0, int(e.x/scale), int(e.y/scale)))
+-        def WheelUp(e):
+-            return EventDo(struct.pack('>BBHH', 2, 1, int(e.x/scale), int(e.y/scale)))
+-        canvas.bind(sequence="<Button-4>", func=WheelUp)
+-        canvas.bind(sequence="<Button-5>", func=WheelDown)
+-
+-    # 鼠标滑动
+-    # 100ms发送一次
+-    def Move(e):
+-        global last_send
+-        cu = time.time()
+-        if cu - last_send > IDLE:
+-            last_send = cu
+-            sx, sy = int(e.x/scale), int(e.y/scale)
+-            return EventDo(struct.pack('>BBHH', 4, 0, sx, sy))
+-    canvas.bind(sequence="<Motion>", func=Move)
+-
+-    # 键盘
+-    def KeyDown(e):
+-        return EventDo(struct.pack('>BBHH', e.keycode, 100, int(e.x/scale), int(e.y/scale)))
+-
+-    def KeyUp(e):
+-        return EventDo(struct.pack('>BBHH', e.keycode, 117, int(e.x/scale), int(e.y/scale)))
+-    canvas.bind(sequence="<KeyPress>", func=KeyDown)
+-    canvas.bind(sequence="<KeyRelease>", func=KeyUp)
+-
+-# if click the "Show", the "run" will run
+-def run():
+-    global wscale, fixh, fixw, soc, showcan
+-    SetSocket() # 设置tcp连接与socks5代理
+-    # 发送平台信息
+-    soc.sendall(PLAT)
+-    lenb = soc.recv(5) #TODO2 得到infomation in run()
+-    imtype, le = struct.unpack(">BI", lenb)
+-    imb = b''# 之后按照一定的规则处理数据=> imb get lenb(length)
+-    while le > bufsize:  
+-        t = soc.recv(bufsize)
+-        imb += t
+-        le -= len(t)
+-    while le > 0:
+-        t = soc.recv(le)
+-        imb += t
+-        le -= len(t)
+-    data = np.frombuffer(imb, dtype=np.uint8)
+-    img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+-    h, w, _ = img.shape
+-    fixh, fixw = h, w
+-    imsh = cv2.cvtColor(img, cv2.COLOR_BGR2RGBA)
+-    imi = Image.fromarray(imsh)
+-    imgTK = ImageTk.PhotoImage(image=imi)
+-    cv = tkinter.Canvas(showcan, width=w, height=h, bg="white")
+-    cv.focus_set()
+-    BindEvents(cv)
+-    cv.pack()
+-    cv.create_image(0, 0, anchor=tkinter.NW, image=imgTK)
+-    h = int(h * scale)
+-    w = int(w * scale)
+-    while True:
+-        if wscale:
+-            h = int(fixh * scale)
+-            w = int(fixw * scale)
+-            cv.config(width=w, height=h)
+-            wscale = False
+-        try:
+-            lenb = soc.recv(5)
+-            imtype, le = struct.unpack(">BI", lenb)
+-            imb = b''
+-            while le > bufsize:
+-                t = soc.recv(bufsize)
+-                imb += t
+-                le -= len(t)
+-            while le > 0:
+-                t = soc.recv(le)
+-                imb += t
+-                le -= len(t)
+-            data = np.frombuffer(imb, dtype=np.uint8)
+-            ims = cv2.imdecode(data, cv2.IMREAD_COLOR)
+-            if imtype == 1:
+-                # 全传
+-                img = ims
+-            else:
+-                # 差异传
+-                img = img ^ ims
+-            imt = cv2.resize(img, (w, h))
+-            imsh = cv2.cvtColor(imt, cv2.COLOR_RGB2RGBA)
+-            imi = Image.fromarray(imsh)
+-            imgTK.paste(imi)
+-        except:
+-            showcan = None
+-            ShowScreen()
+-            return
+-
+-
+-root.mainloop()
++# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+Index: .idea/workspace.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<project version=\"4\">\r\n  <component name=\"AutoImportSettings\">\r\n    <option name=\"autoReloadType\" value=\"SELECTIVE\" />\r\n  </component>\r\n  <component name=\"ChangeListManager\">\r\n    <list default=\"true\" id=\"10d739d1-b764-451a-bdc2-a8f0788d16ac\" name=\"Changes\" comment=\"\" />\r\n    <option name=\"SHOW_DIALOG\" value=\"false\" />\r\n    <option name=\"HIGHLIGHT_CONFLICTS\" value=\"true\" />\r\n    <option name=\"HIGHLIGHT_NON_ACTIVE_CHANGELIST\" value=\"false\" />\r\n    <option name=\"LAST_RESOLUTION\" value=\"IGNORE\" />\r\n  </component>\r\n  <component name=\"FileTemplateManagerImpl\">\r\n    <option name=\"RECENT_TEMPLATES\">\r\n      <list>\r\n        <option value=\"Python Script\" />\r\n      </list>\r\n    </option>\r\n  </component>\r\n  <component name=\"Git.Settings\">\r\n    <option name=\"RECENT_BRANCH_BY_REPOSITORY\">\r\n      <map>\r\n        <entry key=\"$PROJECT_DIR$\" value=\"compression_udp\" />\r\n      </map>\r\n    </option>\r\n    <option name=\"RECENT_GIT_ROOT_PATH\" value=\"$PROJECT_DIR$\" />\r\n  </component>\r\n  <component name=\"GitToolBoxStore\">\r\n    <option name=\"recentBranches\">\r\n      <RecentBranches>\r\n        <option name=\"branchesForRepo\">\r\n          <list>\r\n            <RecentBranchesForRepo>\r\n              <option name=\"branches\">\r\n                <list>\r\n                  <RecentBranch>\r\n                    <option name=\"branchName\" value=\"add_gesture\" />\r\n                    <option name=\"lastUsedInstant\" value=\"1640600468\" />\r\n                  </RecentBranch>\r\n                  <RecentBranch>\r\n                    <option name=\"branchName\" value=\"compression_udp\" />\r\n                    <option name=\"lastUsedInstant\" value=\"1640599704\" />\r\n                  </RecentBranch>\r\n                  <RecentBranch>\r\n                    <option name=\"branchName\" value=\"master\" />\r\n                    <option name=\"lastUsedInstant\" value=\"1640599703\" />\r\n                  </RecentBranch>\r\n                </list>\r\n              </option>\r\n              <option name=\"repositoryRootUrl\" value=\"file://$PROJECT_DIR$\" />\r\n            </RecentBranchesForRepo>\r\n          </list>\r\n        </option>\r\n      </RecentBranches>\r\n    </option>\r\n  </component>\r\n  <component name=\"GithubPullRequestsUISettings\">\r\n    <option name=\"selectedUrlAndAccountId\">\r\n      <UrlAndAccount>\r\n        <option name=\"accountId\" value=\"d25b9ffa-72a1-430f-9844-f726d253bd2f\" />\r\n        <option name=\"url\" value=\"https://github.com/RamezesDong/remote-desktop-tcp2udp.git\" />\r\n      </UrlAndAccount>\r\n    </option>\r\n  </component>\r\n  <component name=\"MarkdownSettingsMigration\">\r\n    <option name=\"stateVersion\" value=\"1\" />\r\n  </component>\r\n  <component name=\"ProjectId\" id=\"22rF9oHKYvW8JXHeD2Wr99KUHnP\" />\r\n  <component name=\"ProjectViewState\">\r\n    <option name=\"hideEmptyMiddlePackages\" value=\"true\" />\r\n    <option name=\"showLibraryContents\" value=\"true\" />\r\n  </component>\r\n  <component name=\"PropertiesComponent\">\r\n    <property name=\"RunOnceActivity.OpenProjectViewOnStart\" value=\"true\" />\r\n    <property name=\"RunOnceActivity.ShowReadmeOnStart\" value=\"true\" />\r\n    <property name=\"last_opened_file_path\" value=\"$PROJECT_DIR$\" />\r\n    <property name=\"settings.editor.selected.configurable\" value=\"preferences.pluginManager\" />\r\n  </component>\r\n  <component name=\"RunManager\" selected=\"Python.main_be_controled\">\r\n    <configuration name=\"main\" type=\"PythonConfigurationType\" factoryName=\"Python\" temporary=\"true\" nameIsGenerated=\"true\">\r\n      <module name=\"remote-desktop-tcp2udp\" />\r\n      <option name=\"INTERPRETER_OPTIONS\" value=\"\" />\r\n      <option name=\"PARENT_ENVS\" value=\"true\" />\r\n      <envs>\r\n        <env name=\"PYTHONUNBUFFERED\" value=\"1\" />\r\n      </envs>\r\n      <option name=\"SDK_HOME\" value=\"\" />\r\n      <option name=\"WORKING_DIRECTORY\" value=\"$PROJECT_DIR$\" />\r\n      <option name=\"IS_MODULE_SDK\" value=\"true\" />\r\n      <option name=\"ADD_CONTENT_ROOTS\" value=\"true\" />\r\n      <option name=\"ADD_SOURCE_ROOTS\" value=\"true\" />\r\n      <option name=\"SCRIPT_NAME\" value=\"$PROJECT_DIR$/main.py\" />\r\n      <option name=\"PARAMETERS\" value=\"\" />\r\n      <option name=\"SHOW_COMMAND_LINE\" value=\"false\" />\r\n      <option name=\"EMULATE_TERMINAL\" value=\"false\" />\r\n      <option name=\"MODULE_MODE\" value=\"false\" />\r\n      <option name=\"REDIRECT_INPUT\" value=\"false\" />\r\n      <option name=\"INPUT_FILE\" value=\"\" />\r\n      <method v=\"2\" />\r\n    </configuration>\r\n    <configuration name=\"main_be_controled\" type=\"PythonConfigurationType\" factoryName=\"Python\" temporary=\"true\" nameIsGenerated=\"true\">\r\n      <module name=\"remote-desktop-tcp2udp\" />\r\n      <option name=\"INTERPRETER_OPTIONS\" value=\"\" />\r\n      <option name=\"PARENT_ENVS\" value=\"true\" />\r\n      <envs>\r\n        <env name=\"PYTHONUNBUFFERED\" value=\"1\" />\r\n      </envs>\r\n      <option name=\"SDK_HOME\" value=\"\" />\r\n      <option name=\"WORKING_DIRECTORY\" value=\"$PROJECT_DIR$\" />\r\n      <option name=\"IS_MODULE_SDK\" value=\"true\" />\r\n      <option name=\"ADD_CONTENT_ROOTS\" value=\"true\" />\r\n      <option name=\"ADD_SOURCE_ROOTS\" value=\"true\" />\r\n      <option name=\"SCRIPT_NAME\" value=\"$PROJECT_DIR$/main_be_controled.py\" />\r\n      <option name=\"PARAMETERS\" value=\"\" />\r\n      <option name=\"SHOW_COMMAND_LINE\" value=\"false\" />\r\n      <option name=\"EMULATE_TERMINAL\" value=\"false\" />\r\n      <option name=\"MODULE_MODE\" value=\"false\" />\r\n      <option name=\"REDIRECT_INPUT\" value=\"false\" />\r\n      <option name=\"INPUT_FILE\" value=\"\" />\r\n      <method v=\"2\" />\r\n    </configuration>\r\n    <recent_temporary>\r\n      <list>\r\n        <item itemvalue=\"Python.main_be_controled\" />\r\n        <item itemvalue=\"Python.main\" />\r\n      </list>\r\n    </recent_temporary>\r\n  </component>\r\n  <component name=\"SpellCheckerSettings\" RuntimeDictionaries=\"0\" Folders=\"0\" CustomDictionaries=\"0\" DefaultDictionary=\"application-level\" UseSingleDictionary=\"true\" transferred=\"true\" />\r\n  <component name=\"TaskManager\">\r\n    <task active=\"true\" id=\"Default\" summary=\"Default task\">\r\n      <changelist id=\"10d739d1-b764-451a-bdc2-a8f0788d16ac\" name=\"Changes\" comment=\"\" />\r\n      <created>1640587649595</created>\r\n      <option name=\"number\" value=\"Default\" />\r\n      <option name=\"presentableId\" value=\"Default\" />\r\n      <updated>1640587649595</updated>\r\n    </task>\r\n    <servers />\r\n  </component>\r\n  <component name=\"Vcs.Log.Tabs.Properties\">\r\n    <option name=\"TAB_STATES\">\r\n      <map>\r\n        <entry key=\"MAIN\">\r\n          <value>\r\n            <State>\r\n              <option name=\"FILTERS\">\r\n                <map>\r\n                  <entry key=\"branch\">\r\n                    <value>\r\n                      <list>\r\n                        <option value=\"upstream/add_gesture\" />\r\n                      </list>\r\n                    </value>\r\n                  </entry>\r\n                </map>\r\n              </option>\r\n            </State>\r\n          </value>\r\n        </entry>\r\n      </map>\r\n    </option>\r\n  </component>\r\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/workspace.xml b/.idea/workspace.xml
+--- a/.idea/workspace.xml	(revision 71616ffb5c13d3dc4a7c911e92124bb83f45d525)
++++ b/.idea/workspace.xml	(date 1640608060865)
+@@ -76,9 +76,8 @@
+     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+     <property name="settings.editor.selected.configurable" value="preferences.pluginManager" />
+   </component>
+-  <component name="RunManager" selected="Python.main_be_controled">
+-    <configuration name="main" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+-      <module name="remote-desktop-tcp2udp" />
++  <component name="RunManager" selected="Python.main">
++    <configuration name="main" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
+       <option name="INTERPRETER_OPTIONS" value="" />
+       <option name="PARENT_ENVS" value="true" />
+       <envs>
+@@ -86,9 +85,10 @@
+       </envs>
+       <option name="SDK_HOME" value="" />
+       <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+-      <option name="IS_MODULE_SDK" value="true" />
++      <option name="IS_MODULE_SDK" value="false" />
+       <option name="ADD_CONTENT_ROOTS" value="true" />
+       <option name="ADD_SOURCE_ROOTS" value="true" />
++      <module name="" />
+       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/main.py" />
+       <option name="PARAMETERS" value="" />
+       <option name="SHOW_COMMAND_LINE" value="false" />

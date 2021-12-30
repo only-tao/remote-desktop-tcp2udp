@@ -22,7 +22,7 @@ soc.listen(1)  #TODO3 listen
 IMQUALITY = 50
 
 lock = threading.Lock()
-def ctrl(conn):
+def ctrl(socket_connected):
     '''
     读取控制命令，并在本机还原操作
     '''
@@ -66,7 +66,7 @@ def ctrl(conn):
     try:
         plat = b''
         while True:
-            plat += conn.recv(3-len(plat)) # recv here platform info ?? 
+            plat += socket_connected.recv(3-len(plat)) # recv here platform info ?? 
             if len(plat) == 3:
                 break
         print("Plat:", plat.decode())
@@ -76,7 +76,7 @@ def ctrl(conn):
             cmd = b''
             rest = base_len - 0
             while rest > 0:
-                cmd += conn.recv(rest) #TODO recv 得到控制info
+                cmd += socket_connected.recv(rest) #TODO recv 得到控制info
                 rest -= len(cmd)
             key = cmd[0]
             op = cmd[1]
@@ -90,57 +90,57 @@ def ctrl(conn):
 # 压缩后np图像
 img = None
 # 编码后的图像
-imbyt = None
+lmage_byte_old = None
 
 
-def handle(conn):
-    global img, imbyt
+def handle(socket_connected):
+    global img, lmage_byte_old
     lock.acquire()
-    if imbyt is None:
+    if lmage_byte_old is None:
         imorg = np.asarray(ImageGrab.grab()) # cut screen
-        _, imbyt = cv2.imencode(
+        _, lmage_byte_old = cv2.imencode(
             ".jpg", imorg, [cv2.IMWRITE_JPEG_QUALITY, IMQUALITY]) # change to jpg?
-        imnp = np.asarray(imbyt, np.uint8)
+        imnp = np.asarray(lmage_byte_old, np.uint8)
         img = cv2.imdecode(imnp, cv2.IMREAD_COLOR)
     lock.release()
-    lenb = struct.pack(">BI", 1, len(imbyt))
-    conn.sendall(lenb) #! sendall
-    conn.sendall(imbyt) #! sendall
+    length_bytes = struct.pack(">BI", 1, len(lmage_byte_old))
+    socket_connected.sendall(length_bytes) #! sendall
+    socket_connected.sendall(lmage_byte_old) #! sendall
     while True:
         # fix for linux
         time.sleep(IDLE)
-        gb = ImageGrab.grab()
-        imgnpn = np.asarray(gb)
+        grab = ImageGrab.grab()
+        imgnpn = np.asarray(grab)
         _, timbyt = cv2.imencode(
             ".jpg", imgnpn, [cv2.IMWRITE_JPEG_QUALITY, IMQUALITY])
         imnp = np.asarray(timbyt, np.uint8)
         imgnew = cv2.imdecode(imnp, cv2.IMREAD_COLOR)
         # 计算图像差值
-        imgs = imgnew ^ img
-        if (imgs != 0).any():
+        image_diff = imgnew ^ img
+        if (image_diff != 0).any():
             # 画质改变
             pass
         else:
             continue
-        imbyt = timbyt
+        lmage_byte_old = timbyt
         img = imgnew
         # 无损压缩
-        _, imb = cv2.imencode(".png", imgs)
-        l1 = len(imbyt)  # 原图像大小
-        l2 = len(imb)  # 差异图像大小
-        if l1 > l2:
+        _, imb = cv2.imencode(".png", image_diff)
+        length_old = len(lmage_byte_old)  # 原图像大小
+        length_new = len(imb)  # 差异图像大小
+        if length_old > length_new:
             # 传差异化图像
-            lenb = struct.pack(">BI", 0, l2) #  bi = struct.pack(">I",234) =>  bi-> bi[0],bi[1],bi[2],bi[3] 4字节
-            conn.sendall(lenb) #TODO sendall 回传图像 ↓4
-            conn.sendall(imb) #!发送完整的TCP数据，成功返回None，失败抛出异常
+            length_bytes = struct.pack(">BI", 0, length_new) #  bi = struct.pack(">I",234) =>  bi-> bi[0],bi[1],bi[2],bi[3] 4字节
+            socket_connected.sendall(length_bytes) #TODO sendall 回传图像 ↓4
+            socket_connected.sendall(imb) #!发送完整的TCP数据，成功返回None，失败抛出异常
         else:
             # 传原编码图像
-            lenb = struct.pack(">BI", 1, l1)
-            conn.sendall(lenb) #!
-            conn.sendall(imbyt) #!
+            length_bytes = struct.pack(">BI", 1, length_old)
+            socket_connected.sendall(length_bytes) #!
+            socket_connected.sendall(lmage_byte_old) #!
 
 
 while True:
-    conn, addr = soc.accept() # TODO4 接受连接
-    threading.Thread(target=handle, args=(conn,)).start() #! con is what ?? => data_socket? 
-    threading.Thread(target=ctrl, args=(conn,)).start()
+    socket_connected, addr = soc.accept() # TODO4 接受连接
+    threading.Thread(target=handle, args=(socket_connected,)).start() #! con is what ?? => data_socket? 
+    threading.Thread(target=ctrl, args=(socket_connected,)).start()
